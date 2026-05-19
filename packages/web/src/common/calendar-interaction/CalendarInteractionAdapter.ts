@@ -18,9 +18,12 @@ export type FloatingInteractionOverlayUpdate = {
   width?: number;
 } | null;
 
+export type SourceElementOverlayMode = "hide-source" | "dim-source";
+
 export interface CalendarInteractionAdapter<TTarget, TVisual, TResult> {
   getTarget(event: PointerEvent): TTarget | null;
   getSourceElement(target: TTarget): HTMLElement;
+  getSourceElementOverlayMode?(target: TTarget): SourceElementOverlayMode;
   createVisual(input: {
     pointerStart: CalendarInteractionPoint;
     sourceElement: HTMLElement;

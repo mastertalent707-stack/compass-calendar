@@ -1,6 +1,7 @@
 import {
   type CalendarInteractionAdapter,
   type FloatingInteractionOverlayMount,
+  type SourceElementOverlayMode,
 } from "./CalendarInteractionAdapter";
 import { createCalendarInteractionEngine } from "./CalendarInteractionEngine";
 import { createInteractionClone } from "./dom/clone/createInteractionClone";
@@ -41,7 +42,13 @@ const makePointerEvent = (
     pointerId,
   });
 
-const createHarness = () => {
+const SOURCE_ELEMENT_INTERACTION_ATTRIBUTE = "data-calendar-interaction-source";
+
+const createHarness = ({
+  sourceOverlayMode,
+}: {
+  sourceOverlayMode?: SourceElementOverlayMode;
+} = {}) => {
   document.body.innerHTML = "";
   document.body.style.cursor = "";
   document.documentElement.style.cursor = "";
@@ -96,6 +103,9 @@ const createHarness = () => {
       },
     ),
     getSourceElement: mock((resolvedTarget) => resolvedTarget.source),
+    ...(sourceOverlayMode
+      ? { getSourceElementOverlayMode: mock(() => sourceOverlayMode) }
+      : {}),
     getTarget: mock(() => target),
     updateVisual: mock(({ pointer, visual }) => ({
       overlay: {
@@ -245,6 +255,45 @@ describe("CalendarInteractionEngine", () => {
       active: true,
       phase: "motion",
     });
+  });
+
+  it("can keep the source visible as a dimmed placeholder during motion", () => {
+    const { engine, flushFrame, source } = createHarness({
+      sourceOverlayMode: "dim-source",
+    });
+
+    engine.handlePointerDown(makePointerEvent("pointerdown", { x: 10, y: 10 }));
+    engine.handlePointerMove(makePointerEvent("pointermove", { x: 36, y: 10 }));
+
+    expect(source.style.visibility).toBe("visible");
+    expect(source.style.opacity).toBe("0.5");
+    expect(source.style.pointerEvents).toBe("none");
+    expect(source).toHaveAttribute(SOURCE_ELEMENT_INTERACTION_ATTRIBUTE);
+
+    flushFrame();
+    engine.handlePointerUp(makePointerEvent("pointerup"));
+
+    expect(source.style.visibility).toBe("visible");
+    expect(source.style.opacity).toBe("");
+    expect(source.style.pointerEvents).toBe("");
+    expect(source).not.toHaveAttribute(SOURCE_ELEMENT_INTERACTION_ATTRIBUTE);
+  });
+
+  it("restores only the styles changed by the source overlay mode", () => {
+    const { engine, flushFrame, source } = createHarness();
+
+    engine.handlePointerDown(makePointerEvent("pointerdown", { x: 10, y: 10 }));
+    engine.handlePointerMove(makePointerEvent("pointermove", { x: 36, y: 10 }));
+
+    source.style.opacity = "0.25";
+    source.style.pointerEvents = "auto";
+
+    flushFrame();
+    engine.handlePointerUp(makePointerEvent("pointerup"));
+
+    expect(source.style.visibility).toBe("visible");
+    expect(source.style.opacity).toBe("0.25");
+    expect(source.style.pointerEvents).toBe("auto");
   });
 
   it("commits the current visual and restores the source on pointer up", () => {

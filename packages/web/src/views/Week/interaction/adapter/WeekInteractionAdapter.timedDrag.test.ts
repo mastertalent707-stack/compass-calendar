@@ -89,6 +89,22 @@ const makePointerEvent = (
   return event;
 };
 
+const SOURCE_ELEMENT_INTERACTION_ATTRIBUTE = "data-calendar-interaction-source";
+
+const expectSourceDimmed = (source: HTMLElement) => {
+  expect(source.style.visibility).toBe("visible");
+  expect(source.style.opacity).toBe("0.5");
+  expect(source.style.pointerEvents).toBe("none");
+  expect(source).toHaveAttribute(SOURCE_ELEMENT_INTERACTION_ATTRIBUTE);
+};
+
+const expectSourceRestored = (source: HTMLElement) => {
+  expect(source.style.visibility).toBe("visible");
+  expect(source.style.opacity).toBe("");
+  expect(source.style.pointerEvents).toBe("");
+  expect(source).not.toHaveAttribute(SOURCE_ELEMENT_INTERACTION_ATTRIBUTE);
+};
+
 const createHarness = ({
   isPending = false,
   mainGridScrollTop = 0,
@@ -365,7 +381,7 @@ describe("WeekInteractionAdapter timed drag", () => {
       makePointerEvent("pointermove", { target: child, x: 320, y: 1120 }),
     );
 
-    expect(source.style.visibility).toBe("hidden");
+    expectSourceDimmed(source);
     expect(onMotionActivation).toHaveBeenCalledWith(
       expect.objectContaining({ event }),
     );
@@ -396,7 +412,7 @@ describe("WeekInteractionAdapter timed drag", () => {
         hasMoved: true,
       }),
     );
-    expect(source.style.visibility).toBe("visible");
+    expectSourceRestored(source);
     expect(
       document.body.querySelector("[data-calendar-interaction-overlay]"),
     ).toBeNull();
