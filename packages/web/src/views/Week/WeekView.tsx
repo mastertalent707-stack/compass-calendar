@@ -55,13 +55,15 @@ export const WeekView = () => {
   const util = weekProps.util;
 
   const shortcutProps = {
-    today,
-    dateCalcs,
     isCurrentWeek,
     startOfView: weekProps.component.startOfView,
     endOfView: weekProps.component.endOfView,
     util,
     scrollUtil,
+  };
+  const cmdPaletteProps = {
+    ...shortcutProps,
+    today,
   };
 
   const shortcutSections = useMemo(
@@ -82,6 +84,9 @@ export const WeekView = () => {
         shortcuts: [
           { k: "c", label: "Create timed event" },
           { k: "a", label: "Create all-day event" },
+          { k: "Arrow keys", label: "Move draft event" },
+          { k: "I", label: "Focus calendar event" },
+          { k: "M", label: "Edit calendar event" },
           { k: "Shift+w", label: "Create Someday week event" },
           { k: "Shift+m", label: "Create Someday month event" },
         ],
@@ -92,8 +97,8 @@ export const WeekView = () => {
           { k: "d", label: "Day" },
           { k: "w", label: "Week" },
           { k: "n", label: "Now" },
-          { k: "[", label: "Close sidebar" },
-          { k: "?", label: "Show shortcuts" },
+          { k: "[", label: "Toggle sidebar" },
+          { k: "?", label: "Toggle shortcuts" },
           { k: "Mod+k", label: "Command Palette" },
         ],
       },
@@ -119,7 +124,7 @@ export const WeekView = () => {
 
   return (
     <Styled id="cal">
-      <CmdPalette {...shortcutProps} />
+      <CmdPalette {...cmdPaletteProps} />
       <Dedication />
 
       <DraftProvider dateCalcs={dateCalcs} weekProps={weekProps}>
