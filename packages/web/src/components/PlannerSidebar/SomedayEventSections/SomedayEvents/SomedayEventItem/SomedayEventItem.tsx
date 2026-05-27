@@ -18,6 +18,7 @@ export interface Props {
   event: Schema_Event;
   index: number;
   isDrafting: boolean;
+  animateEnter?: boolean;
 }
 
 const shouldReduceMotion = () =>
@@ -114,9 +115,11 @@ export const SomedayEventItem: FC<Props> = ({
   event,
   isDrafting,
   index,
+  animateEnter = false,
 }) => {
   const isDraftingThisEvent =
     isDrafting && (draftId === event._id || !event._id);
+  const enterAnimationRef = useRef(animateEnter);
   const layoutAnimationRef = useSomedayRowLayoutAnimation();
   const { actions, setters, state } = useSidebarContext();
   const { start, end } = useAppSelector(selectDatesInView);
@@ -130,7 +133,12 @@ export const SomedayEventItem: FC<Props> = ({
   });
 
   return (
-    <div ref={layoutAnimationRef}>
+    <div
+      className={
+        enterAnimationRef.current ? "animate-someday-cold-fade-in" : undefined
+      }
+      ref={layoutAnimationRef}
+    >
       <SomedayEventContainer
         category={category}
         event={event}

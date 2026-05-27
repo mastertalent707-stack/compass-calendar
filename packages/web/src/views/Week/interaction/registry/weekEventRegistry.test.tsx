@@ -33,13 +33,23 @@ import {
   type WeekInteractionEventType,
   weekEventRegistry,
 } from "./weekEventRegistry";
-import { afterEach, describe, expect, it, mock } from "bun:test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+  setSystemTime,
+} from "bun:test";
 
-const getFixtureWeekStart = (yearOffset: number) =>
-  dayjs().add(yearOffset, "year").startOf("week").startOf("day");
-
-const futureWeekStart = getFixtureWeekStart(1);
-const pastWeekStart = getFixtureWeekStart(-1);
+const TEST_NOW = new Date("2026-05-01T00:00:00.000Z");
+const testNow = dayjs(TEST_NOW);
+const futureWeekStart = testNow.add(1, "week").startOf("week").startOf("day");
+const pastWeekStart = testNow
+  .subtract(1, "week")
+  .startOf("week")
+  .startOf("day");
 const startOfView = futureWeekStart;
 const endOfView = startOfView.add(7, "day");
 const futureTimedStart = futureWeekStart.add(1, "day").hour(9);
@@ -134,6 +144,10 @@ const expectEventBgToUseHoverColor = (element: HTMLElement) => {
     gridHoverColorByPriority[Priorities.UNASSIGNED],
   );
 };
+
+beforeEach(() => {
+  setSystemTime(TEST_NOW);
+});
 
 const RegistrationHarness = ({
   eventId = "event-1",
@@ -241,6 +255,7 @@ const RegisteredAllDayEventHarness = ({
 };
 
 afterEach(() => {
+  setSystemTime();
   act(() => {
     __resetSomedayCommitAcknowledgementState();
   });

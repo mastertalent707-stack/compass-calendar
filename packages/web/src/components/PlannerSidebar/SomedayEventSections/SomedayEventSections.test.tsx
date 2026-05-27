@@ -11,8 +11,25 @@ mock.module("@web/components/AbsoluteOverflowLoader", () => ({
 
 mock.module("@web/store/store.hooks", () => ({
   useAppDispatch: () => mock(),
-  useAppSelector: () => true,
+  useAppSelector: () => 0,
 }));
+
+mock.module(
+  "@web/components/PlannerSidebar/draft/context/useSidebarContext",
+  () => ({
+    useSidebarContext: () => ({
+      state: {
+        somedayEvents: {
+          columns: {
+            weekEvents: { eventIds: [] },
+            monthEvents: { eventIds: [] },
+          },
+          events: {},
+        },
+      },
+    }),
+  }),
+);
 
 mock.module("./SomedayWeekSection/SomedayWeekSection", () => ({
   SomedayWeekSection: () => <section>Week someday events</section>,
