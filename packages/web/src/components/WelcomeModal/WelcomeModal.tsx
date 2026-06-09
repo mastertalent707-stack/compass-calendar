@@ -1,59 +1,38 @@
 import {
+	GithubLogoIcon,
 	LinkedinLogoIcon,
 	XLogoIcon,
-	GithubLogoIcon,
 } from "@phosphor-icons/react";
-import { useContext, useState } from "react";
-import { SessionContext } from "@web/auth/compass/session/SessionProvider";
+import { SessionContext } from "@web/auth/compass/session/session.context";
 import { Z_INDEX_MODAL } from "@web/common/constants/web.constants";
 import { useAuthModal } from "@web/components/AuthModal/hooks/useAuthModal";
-
-const STORAGE_KEY = "compass.onboarding.has-seen-welcome";
-
-function hasSeenWelcome(): boolean {
-	try {
-		return localStorage.getItem(STORAGE_KEY) === "true";
-	} catch {
-		return true;
-	}
-}
-
-function markWelcomeSeen(): void {
-	try {
-		localStorage.setItem(STORAGE_KEY, "true");
-	} catch {
-		// Silently fail if localStorage is unavailable
-	}
-}
-
-const FAQ_ITEMS = [
-	{
-		question: "Who is Compass for?",
-		answer:
-			"Compass is designed for minimalists who value efficiency, keyboard shortcuts, and open-source software. We are focused on helping people do more with less.",
-	},
-	{
-		question: "Does Compass use AI?",
-		answer:
-			"Not currently. Compass gives you the tools to make your own decisions about how to spend your time, without algorithmic suggestions you'll ignore anyway.",
-	},
-	{
-		question: "How much of the code is open-source?",
-		answer: null, // rendered separately
-	},
-	{
-		question: "What makes Compass different from other calendars?",
-		answer:
-			"It's simpler and faster. Instead of doing everything, we do a few things well.",
-	},
-];
+import {
+	type KeyboardEvent,
+	type MouseEvent,
+	useContext,
+	useEffect,
+	useId,
+	useRef,
+	useState,
+} from "react";
+import { FAQ_ITEMS } from "./faq";
+import { hasSeenWelcome, markWelcomeSeen } from "./welcome.modal.util";
 
 export function WelcomeModal() {
 	const { authenticated } = useContext(SessionContext);
 	const { openModal } = useAuthModal();
+	const disclosureIdPrefix = useId();
 	const [isOpen, setIsOpen] = useState(
 		() => !authenticated && !hasSeenWelcome(),
 	);
+	const [expandedFaqs, setExpandedFaqs] = useState<Set<string>>(
+		() => new Set(),
+	);
+	const backdropRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		backdropRef.current?.focus();
+	}, []);
 
 	if (!isOpen) return null;
 
@@ -67,26 +46,54 @@ export function WelcomeModal() {
 		openModal("login");
 	};
 
+	const handleBackdropClick = (event: MouseEvent<HTMLDivElement>) => {
+		if (event.target === event.currentTarget) {
+			dismiss();
+		}
+	};
+
+	const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+		if (event.key === "Escape") {
+			dismiss();
+		}
+	};
+
+	const toggleFaq = (question: string) => {
+		setExpandedFaqs((currentFaqs) => {
+			const nextFaqs = new Set(currentFaqs);
+
+			if (nextFaqs.has(question)) {
+				nextFaqs.delete(question);
+			} else {
+				nextFaqs.add(question);
+			}
+
+			return nextFaqs;
+		});
+	};
+
 	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: The backdrop catches outside clicks and Escape to dismiss the welcome modal.
 		<div
-			className="fixed inset-0 flex items-center justify-center bg-bg-primary/85 backdrop-blur-sm overflow-y-auto py-8"
+			className="fixed inset-0 flex items-center justify-center overflow-y-auto bg-bg-primary/85 py-8 backdrop-blur-sm"
+			onClick={handleBackdropClick}
+			onKeyDown={handleKeyDown}
+			ref={backdropRef}
 			role="presentation"
 			style={{ zIndex: Z_INDEX_MODAL }}
+			tabIndex={-1}
 		>
 			<div
 				role="dialog"
 				aria-modal
 				aria-label="Welcome to Compass Calendar"
-				className="w-[560px] max-w-[90vw] flex flex-col gap-6 rounded-xl bg-panel-bg p-8 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]"
+				className="flex w-140 max-w-[90vw] flex-col gap-6 rounded-xl bg-panel-bg p-8 shadow-[0_20px_25px_-5px_rgba(0,0,0,0.1),0_10px_10px_-5px_rgba(0,0,0,0.04)]"
 			>
 				{/* Header */}
 				<div className="flex flex-col gap-2">
-					<h2 className="m-0 text-2xl font-bold text-text-lighter">
-						Ahoy! You found a simple, fast calendar.
-					</h2>
-					<p className="m-0 text-base text-text-light">
-						We&apos;re making Compass Calendar the best place to manage your
-						week.
+					<h2 className="font-bold text-2xl text-text-lighter">Ahoy!</h2>
+					<p className="text-text-lighter">
+						You found a simple, fast calendar.
 					</p>
 				</div>
 
@@ -95,14 +102,14 @@ export function WelcomeModal() {
 					<button
 						type="button"
 						onClick={dismiss}
-						className="h-11 flex-1 rounded bg-accent-primary px-4 text-sm font-medium text-text-dark transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-panel-bg"
+						className="c-button c-button-primary flex-1"
 					>
 						Start Now
 					</button>
 					<button
 						type="button"
 						onClick={handleLogIn}
-						className="h-11 flex-1 rounded border border-border-primary bg-panel-badge-bg px-4 text-sm text-text-lighter transition-colors hover:bg-panel-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-panel-bg"
+						className="c-button c-button-secondary flex-1"
 					>
 						Log In
 					</button>
@@ -110,44 +117,62 @@ export function WelcomeModal() {
 
 				{/* FAQ */}
 				<div className="flex flex-col divide-y divide-border-primary">
-					{FAQ_ITEMS.map((item) => (
-						<details key={item.question} className="group py-3">
-							<summary className="cursor-pointer list-none text-sm font-medium text-text-lighter select-none hover:text-text-lightest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary rounded">
-								{item.question}
-							</summary>
-							<div className="mt-2 text-sm text-text-light leading-relaxed">
-								{item.answer !== null ? (
-									item.answer
-								) : (
-									<>
-										All of it! Compass is a monorepo that includes the API,
-										frontend, CLI, and more. You can run it yourself too; read
-										the{" "}
-										<a
-											href="/blog/self-host"
-											className="font-medium text-accent-primary underline-offset-4 hover:underline"
-										>
-											self-hosting guide
-										</a>{" "}
-										to set up your own instance. It&apos;s all available on
-										GitHub (link in footer), and we&apos;re always looking for
-										contributors :]
-									</>
-								)}
+					{FAQ_ITEMS.map((item, index) => {
+						const isExpanded = expandedFaqs.has(item.question);
+						const answerId = `${disclosureIdPrefix}-faq-answer-${index}`;
+						const state = isExpanded ? "open" : "closed";
+
+						return (
+							<div key={item.question} className="py-3">
+								<button
+									type="button"
+									aria-controls={answerId}
+									aria-expanded={isExpanded}
+									className="c-focus-ring w-full cursor-pointer select-none text-left font-medium text-sm text-text-lighter transition-colors hover:text-text-lightest"
+									onClick={() => toggleFaq(item.question)}
+								>
+									{item.question}
+								</button>
+								<div
+									id={answerId}
+									aria-hidden={!isExpanded}
+									className="c-disclosure-content"
+									data-state={state}
+								>
+									<div>
+										<div className="mt-2 text-sm text-text-light leading-relaxed">
+											{item.answer !== null ? (
+												item.answer
+											) : (
+												<>
+													Yes! The repo includes the API, frontend, CLI, and
+													more. You can run it yourself too; read the{" "}
+													<a
+														href="/blog/self-host"
+														className="c-focus-ring font-medium text-accent-primary underline-offset-4 hover:underline"
+													>
+														self-hosting guide
+													</a>{" "}
+													to set up your own instance.
+												</>
+											)}
+										</div>
+									</div>
+								</div>
 							</div>
-						</details>
-					))}
+						);
+					})}
 				</div>
 
 				{/* Footer: social + legal */}
-				<div className="flex items-center justify-between border-t border-border-primary pt-4">
+				<div className="flex items-center justify-between border-border-primary border-t pt-4">
 					<div className="flex items-center gap-3">
 						<a
 							href="https://x.com/CompassCalendar"
 							target="_blank"
 							rel="noopener noreferrer"
 							aria-label="X (Twitter)"
-							className="text-text-light transition-colors hover:text-text-lighter focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary rounded"
+							className="c-focus-ring text-text-light transition-colors hover:text-text-lighter"
 						>
 							<XLogoIcon size={18} weight="bold" />
 						</a>
@@ -156,7 +181,7 @@ export function WelcomeModal() {
 							target="_blank"
 							rel="noopener noreferrer"
 							aria-label="LinkedIn"
-							className="text-text-light transition-colors hover:text-text-lighter focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary rounded"
+							className="c-focus-ring text-text-light transition-colors hover:text-text-lighter"
 						>
 							<LinkedinLogoIcon size={18} weight="bold" />
 						</a>
@@ -165,17 +190,17 @@ export function WelcomeModal() {
 							target="_blank"
 							rel="noopener noreferrer"
 							aria-label="GitHub"
-							className="text-text-light transition-colors hover:text-text-lighter focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary rounded"
+							className="c-focus-ring text-text-light transition-colors hover:text-text-lighter"
 						>
 							<GithubLogoIcon size={18} weight="bold" />
 						</a>
 					</div>
-					<div className="flex items-center gap-4 text-xs text-text-light">
+					<div className="flex items-center gap-4 text-text-light text-xs">
 						<a
 							href="https://compasscalendar.com/privacy"
 							target="_blank"
 							rel="noopener noreferrer"
-							className="hover:text-text-lighter hover:underline underline-offset-4"
+							className="c-focus-ring underline-offset-4 hover:text-text-lighter hover:underline"
 						>
 							Privacy
 						</a>
@@ -183,7 +208,7 @@ export function WelcomeModal() {
 							href="https://compasscalendar.com/terms"
 							target="_blank"
 							rel="noopener noreferrer"
-							className="hover:text-text-lighter hover:underline underline-offset-4"
+							className="c-focus-ring underline-offset-4 hover:text-text-lighter hover:underline"
 						>
 							Terms
 						</a>
