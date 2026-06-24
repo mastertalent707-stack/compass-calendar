@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import "@testing-library/jest-dom";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { getModifierKeyTestId } from "@web/common/utils/shortcut/shortcut.util";
+import { getModifierKeyTestId } from "@web/common/shortcuts/shortcut.util";
 
 type ToastMock = ReturnType<typeof mock> & {
   dismiss: ReturnType<typeof mock>;
@@ -45,7 +45,7 @@ describe("UndoDeleteToast", () => {
         <UndoDeleteToast onRestore={mockOnRestore} toastId="test-toast-id" />,
       );
 
-      expect(screen.getByText("+ Z")).toBeInTheDocument();
+      expect(screen.getByText("Z")).toBeInTheDocument();
       expect(screen.getByTestId(getModifierKeyTestId())).toBeInTheDocument();
     });
 

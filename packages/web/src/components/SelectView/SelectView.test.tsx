@@ -96,12 +96,12 @@ describe("SelectView", () => {
         withinDropdown
           .getAllByRole("option")
           .map((option) => option.textContent),
-      ).toEqual(["Dayd", "Weekw"]);
+      ).toEqual(["DayD", "WeekW"]);
 
       const shortcutHints = withinDropdown.getAllByTestId("shortcut-hint");
       expect(shortcutHints).toHaveLength(2);
-      expect(shortcutHints[0]).toHaveTextContent("d");
-      expect(shortcutHints[1]).toHaveTextContent("w");
+      expect(shortcutHints[0]).toHaveTextContent("D");
+      expect(shortcutHints[1]).toHaveTextContent("W");
     });
   });
 
@@ -185,7 +185,6 @@ describe("SelectView", () => {
 
       const dayOption = screen.getByRole("option", { name: /day/i });
       expect(dayOption).toHaveAttribute("aria-selected", "true");
-      expect(dayOption).toHaveClass("bg-fg-primary");
 
       const weekOption = screen.getByRole("option", { name: /week/i });
       expect(weekOption).toHaveAttribute("aria-selected", "false");
@@ -258,7 +257,7 @@ describe("SelectView", () => {
       const shortcutHint = dayOption.querySelector(
         '[data-testid="shortcut-hint"]',
       );
-      expect(shortcutHint).toHaveTextContent("d");
+      expect(shortcutHint).toHaveTextContent("D");
     });
 
     it("displays w shortcut hint for Week option", async () => {
@@ -270,7 +269,7 @@ describe("SelectView", () => {
       const shortcutHint = weekOption.querySelector(
         '[data-testid="shortcut-hint"]',
       );
-      expect(shortcutHint).toHaveTextContent("w");
+      expect(shortcutHint).toHaveTextContent("W");
     });
   });
 
@@ -287,7 +286,8 @@ describe("SelectView", () => {
 
       await waitFor(() => {
         const weekOption = screen.getByRole("option", { name: /week/i });
-        expect(weekOption.className).toContain("ring-1");
+        expect(weekOption).toHaveAttribute("tabindex", "0");
+        expect(dayOption).toHaveAttribute("tabindex", "-1");
       });
     });
 
@@ -303,7 +303,8 @@ describe("SelectView", () => {
 
       await waitFor(() => {
         const weekOption = screen.getByRole("option", { name: /week/i });
-        expect(weekOption.className).toContain("ring-1");
+        expect(weekOption).toHaveAttribute("tabindex", "0");
+        expect(dayOption).toHaveAttribute("tabindex", "-1");
       });
     });
 
@@ -348,13 +349,13 @@ describe("SelectView", () => {
       dayOption.focus();
 
       expect(dayOption).toHaveAttribute("aria-selected", "true");
-      expect(dayOption).toHaveClass("bg-fg-primary");
 
       await user.keyboard("{ArrowDown}");
 
       await waitFor(() => {
         const weekOption = screen.getByRole("option", { name: /week/i });
-        expect(weekOption.className).toContain("ring-1");
+        expect(weekOption).toHaveAttribute("tabindex", "0");
+        expect(dayOption).toHaveAttribute("tabindex", "-1");
       });
     });
 
@@ -370,7 +371,8 @@ describe("SelectView", () => {
 
       await waitFor(() => {
         const dayOption = screen.getByRole("option", { name: /day/i });
-        expect(dayOption.className).toContain("ring-1");
+        expect(dayOption).toHaveAttribute("tabindex", "0");
+        expect(weekOption).toHaveAttribute("tabindex", "-1");
       });
     });
 
@@ -386,7 +388,8 @@ describe("SelectView", () => {
 
       await waitFor(() => {
         const weekOption = screen.getByRole("option", { name: /week/i });
-        expect(weekOption.className).toContain("ring-1");
+        expect(weekOption).toHaveAttribute("tabindex", "0");
+        expect(dayOption).toHaveAttribute("tabindex", "-1");
       });
     });
   });

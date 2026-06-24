@@ -1,6 +1,6 @@
 import type React from "react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
-import { LegacyShortcutHint } from "@web/components/Shortcuts/ShortcutHint";
+import { useEffect, useRef, useState } from "react";
+import { ShortcutKeys } from "@web/components/Shortcuts/ShortcutKeys";
 import {
   Tooltip,
   TooltipContent,
@@ -11,14 +11,16 @@ import { useMenuContext } from "./ActionsMenu";
 export interface MenuItemProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   /**
-   * Content to render inside the delayed tooltip. If omitted, the tooltip is disabled.
+   * Shortcut shown as per-key chips in the delayed tooltip: a single key
+   * (`"Delete"`) or a combo as a key array (`["Mod", "D"]`). If omitted (or
+   * empty), the tooltip is disabled.
    */
-  tooltipContent?: ReactNode;
+  tooltip?: string | string[];
   bgColor: string;
 }
 
 const MenuItem: React.FC<MenuItemProps> = ({
-  tooltipContent,
+  tooltip,
   children,
   onClick,
   bgColor,
@@ -73,29 +75,35 @@ const MenuItem: React.FC<MenuItemProps> = ({
       onKeyDown: handleKeyDown,
     }) || {};
 
-  // With tooltip
+  const button = (
+    <button
+      {...rest}
+      {...itemProps}
+      ref={itemRef}
+      role="menuitem"
+      tabIndex={tabIndex}
+      type={type}
+      className="flex w-full cursor-pointer items-center gap-2 border-0 bg-[var(--actions-menu-item-bg)] px-2 py-1 text-left text-m text-text-dark outline-none hover:[text-shadow:0_0_0.5px_var(--compass-color-text-dark),0_0_0.5px_var(--compass-color-text-dark)] focus-visible:[text-shadow:0_0_0.5px_var(--compass-color-text-dark),0_0_0.5px_var(--compass-color-text-dark)]"
+      style={{ backgroundColor: bgColor }}
+    >
+      {children}
+    </button>
+  );
+
+  // No keys to show -> render the bare button (no empty tooltip surface).
+  if (!tooltip || tooltip.length === 0) {
+    return button;
+  }
+
   return (
     <Tooltip
       open={isTooltipOpen}
       onOpenChange={setIsTooltipOpen}
       placement="right-end"
     >
-      <TooltipTrigger asChild>
-        <button
-          {...rest}
-          {...itemProps}
-          ref={itemRef}
-          role="menuitem"
-          tabIndex={tabIndex}
-          type={type}
-          className="flex w-full cursor-pointer items-center gap-2 border-0 bg-[var(--actions-menu-item-bg)] px-2 py-1 text-left text-m text-text-dark outline-none hover:[text-shadow:0_0_0.5px_var(--compass-color-text-dark),0_0_0.5px_var(--compass-color-text-dark)] focus-visible:[text-shadow:0_0_0.5px_var(--compass-color-text-dark),0_0_0.5px_var(--compass-color-text-dark)]"
-          style={{ backgroundColor: bgColor }}
-        >
-          {children}
-        </button>
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
       <TooltipContent>
-        <LegacyShortcutHint>{tooltipContent}</LegacyShortcutHint>
+        <ShortcutKeys keys={tooltip} />
       </TooltipContent>
     </Tooltip>
   );

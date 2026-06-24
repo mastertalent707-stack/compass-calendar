@@ -1,14 +1,14 @@
 import type React from "react";
 import { type ReactNode } from "react";
 import { AlignItems, Flex } from "@web/components/Flex/Flex";
-import { Text } from "@web/components/Text/Text";
+import { ShortcutKeys } from "@web/components/Shortcuts/ShortcutKeys";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@web/components/Tooltip";
 import { type TooltipOptions } from "@web/components/Tooltip/tooltip.types";
-import { LegacyShortcutHint } from "../Shortcuts/ShortcutHint";
+import { ShortcutHint } from "../Shortcuts/ShortcutHint";
 import { TooltipDescription } from "./Description/TooltipDescription";
 
 export interface Props {
@@ -17,7 +17,8 @@ export interface Props {
   disabled?: boolean;
   onClick?: () => void;
   placement?: TooltipOptions["placement"];
-  shortcut?: string | ReactNode;
+  /** One key (`"?"`) or a combo as a key array (`["Mod", "K"]`); a custom node is rendered as-is. */
+  shortcut?: string | string[] | ReactNode;
 }
 
 export const TooltipWrapper: React.FC<Props> = ({
@@ -37,20 +38,15 @@ export const TooltipWrapper: React.FC<Props> = ({
         {children}
       </TooltipTrigger>
 
-      <TooltipContent
-        className={`${description ? "bg-fg-primary" : ""} rounded p-1`}
-      >
+      <TooltipContent>
         <Flex alignItems={AlignItems.CENTER}>
           {description && <TooltipDescription description={description} />}
-          {shortcut && (
-            <LegacyShortcutHint>
-              {typeof shortcut === "string" ? (
-                <Text size="s">{shortcut}</Text>
-              ) : (
-                shortcut
-              )}
-            </LegacyShortcutHint>
-          )}
+          {shortcut &&
+            (typeof shortcut === "string" || Array.isArray(shortcut) ? (
+              <ShortcutKeys keys={shortcut} />
+            ) : (
+              <ShortcutHint variant="keycap">{shortcut}</ShortcutHint>
+            ))}
         </Flex>
       </TooltipContent>
     </Tooltip>

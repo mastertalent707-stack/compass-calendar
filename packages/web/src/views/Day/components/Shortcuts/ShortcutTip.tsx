@@ -1,4 +1,5 @@
 import { type ReactNode, useState } from "react";
+import { ShortcutKeys } from "@web/components/Shortcuts/ShortcutKeys";
 
 interface ShortcutProps {
   shortcut: string | string[];
@@ -7,28 +8,18 @@ interface ShortcutProps {
 }
 
 const ShortcutBadge = ({
-  displayShortcut,
+  shortcut,
   ariaLabel,
 }: {
-  displayShortcut: string;
+  shortcut: string | string[];
   ariaLabel?: string;
-}) => (
-  <span
-    className="rounded bg-gray-400 px-1.5 py-0.5 text-gray-300 text-xs"
-    title={ariaLabel}
-  >
-    {displayShortcut}
-  </span>
-);
+}) => <ShortcutKeys keys={shortcut} title={ariaLabel} />;
 
 export const ShortcutTip = ({
   shortcut,
   "aria-label": ariaLabel,
   children,
 }: ShortcutProps) => {
-  const displayShortcut = Array.isArray(shortcut)
-    ? shortcut.join(" + ")
-    : shortcut;
   const [isHovered, setIsHovered] = useState(false);
 
   if (children != null) {
@@ -41,16 +32,11 @@ export const ShortcutTip = ({
       >
         {children}
         {isHovered && (
-          <ShortcutBadge
-            displayShortcut={displayShortcut}
-            ariaLabel={ariaLabel}
-          />
+          <ShortcutBadge shortcut={shortcut} ariaLabel={ariaLabel} />
         )}
       </span>
     );
   }
 
-  return (
-    <ShortcutBadge displayShortcut={displayShortcut} ariaLabel={ariaLabel} />
-  );
+  return <ShortcutBadge shortcut={shortcut} ariaLabel={ariaLabel} />;
 };
