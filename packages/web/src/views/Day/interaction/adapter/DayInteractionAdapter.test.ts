@@ -337,6 +337,16 @@ const activateAllDayEventWithoutMoving = () => {
   return result.current;
 };
 
+const createTimedResizeHandle = (edge: "startDate" | "endDate") => {
+  const { source } = registerEvent(timedEvent, "timed");
+  const handle = document.createElement("span");
+
+  handle.setAttribute("data-calendar-event-resize-handle", edge);
+  source.append(handle);
+
+  return handle;
+};
+
 afterEach(() => {
   document.body.innerHTML = "";
   dayCalendarEventRegistry.clear();
@@ -387,6 +397,39 @@ describe("DayInteractionAdapter", () => {
 
     expect(timeLabel).toBeInstanceOf(HTMLElement);
     expect(timeLabel?.textContent).not.toBe("");
+  });
+
+  it("uses the latest timed grid scroll position when it changes before timed drag commit", () => {
+    const result: { current?: DayTimedDragCommitResult } = {};
+    const { child } = registerEvent(timedEvent, "timed");
+    const { adapter, flushFrame, mainGridElement } = createAdapter({
+      onTimedDrag: (nextResult) => {
+        result.current = nextResult;
+      },
+    });
+
+    adapter.handlePointerDown(
+      makePointerEvent("pointerdown", { target: child, x: 160, y: 160 }),
+    );
+    adapter.handlePointerMove(
+      makePointerEvent("pointermove", { target: child, x: 160, y: 220 }),
+    );
+    flushFrame();
+
+    mainGridElement.scrollTop = 120;
+
+    adapter.handlePointerUp(
+      makePointerEvent("pointerup", { target: child, x: 160, y: 220 }),
+    );
+
+    expect(result.current).toMatchObject({
+      event: expect.objectContaining({
+        endDate: expect.stringContaining("13:00"),
+        startDate: expect.stringContaining("12:00"),
+      }),
+      hasMoved: true,
+      type: "timedDragEnd",
+    });
   });
 
   it("continues timed smart scroll while dragging a saved timed event", () => {
@@ -440,5 +483,74 @@ describe("DayInteractionAdapter", () => {
     expect(result.hasMoved).toBe(false);
     expect(result.event.startDate).toBe(multiDayAllDayEvent.startDate);
     expect(result.event.endDate).toBe(multiDayAllDayEvent.endDate);
+  });
+
+  it("continues timed smart scroll in the RAF loop while resizing toward the grid edge", () => {
+    const result: { current?: DayTimedResizeCommitResult } = {};
+    const handle = createTimedResizeHandle("endDate");
+    const { adapter, flushFrame, mainGridElement } = createAdapter({
+      onTimedResize: (nextResult) => {
+        result.current = nextResult;
+      },
+    });
+
+    adapter.handlePointerDown(
+      makePointerEvent("pointerdown", { target: handle, x: 160, y: 160 }),
+    );
+    adapter.handlePointerMove(
+      makePointerEvent("pointermove", { target: handle, x: 160, y: 220 }),
+    );
+
+    flushFrame(16);
+    adapter.handlePointerMove(
+      makePointerEvent("pointermove", { target: handle, x: 160, y: 700 }),
+    );
+    flushFrame(32);
+    flushFrame(48);
+
+    expect(mainGridElement.scrollTop).toBe(20);
+
+    adapter.handlePointerUp(
+      makePointerEvent("pointerup", { target: handle, x: 160, y: 700 }),
+    );
+
+    expect(result.current).toMatchObject({
+      event: expect.objectContaining({
+        endDate: expect.stringContaining("19:30"),
+        startDate: expect.stringContaining("09:00"),
+      }),
+    });
+  });
+
+  it("uses the latest timed grid scroll position when it changes before timed resize commit", () => {
+    const result: { current?: DayTimedResizeCommitResult } = {};
+    const handle = createTimedResizeHandle("endDate");
+    const { adapter, flushFrame, mainGridElement } = createAdapter({
+      onTimedResize: (nextResult) => {
+        result.current = nextResult;
+      },
+    });
+
+    adapter.handlePointerDown(
+      makePointerEvent("pointerdown", { target: handle, x: 160, y: 160 }),
+    );
+    adapter.handlePointerMove(
+      makePointerEvent("pointermove", { target: handle, x: 160, y: 220 }),
+    );
+
+    flushFrame();
+
+    mainGridElement.scrollTop = 120;
+
+    adapter.handlePointerUp(
+      makePointerEvent("pointerup", { target: handle, x: 160, y: 220 }),
+    );
+
+    expect(result.current).toMatchObject({
+      event: expect.objectContaining({
+        endDate: expect.stringContaining("13:00"),
+        startDate: expect.stringContaining("09:00"),
+      }),
+    });
   });
 });

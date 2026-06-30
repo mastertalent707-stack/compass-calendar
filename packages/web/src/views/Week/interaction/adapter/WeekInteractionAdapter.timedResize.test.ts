@@ -77,7 +77,13 @@ const makePointerEvent = (
   return event;
 };
 
-const createHarness = ({ isPending = false }: { isPending?: boolean } = {}) => {
+const createHarness = ({
+  isPending = false,
+  mainGridScrollTop = 0,
+}: {
+  isPending?: boolean;
+  mainGridScrollTop?: number;
+} = {}) => {
   document.body.innerHTML = "";
   weekEventRegistry.clear();
 
@@ -106,7 +112,7 @@ const createHarness = ({ isPending = false }: { isPending?: boolean } = {}) => {
   document.body.append(mainGrid);
   Object.defineProperty(mainGrid, "clientHeight", { value: 1300 });
   Object.defineProperty(mainGrid, "scrollHeight", { value: 2600 });
-  mainGrid.scrollTop = 0;
+  mainGrid.scrollTop = mainGridScrollTop;
 
   setRect(mainGrid, {
     height: 1300,
@@ -193,6 +199,7 @@ const createHarness = ({ isPending = false }: { isPending?: boolean } = {}) => {
     event,
     fireHoldTimer,
     flushFrame,
+    mainGrid,
     onClickTimedEvent,
     onCommitTimedDrag,
     onCommitTimedResize,
@@ -435,6 +442,95 @@ describe("WeekInteractionAdapter timed resize", () => {
         eventId: event._id,
         hasMoved: false,
         type: "timedResizeEnd",
+      }),
+    );
+  });
+
+  it("continues timed smart scroll in the RAF loop while resizing toward the grid edge", () => {
+    const { adapter, endHandle, flushFrame, mainGrid, onCommitTimedResize } =
+      createHarness();
+
+    adapter.handlePointerDown(
+      makePointerEvent("pointerdown", { target: endHandle, x: 320, y: 1100 }),
+    );
+    adapter.handlePointerMove(
+      makePointerEvent("pointermove", { target: endHandle, x: 320, y: 1150 }),
+    );
+
+    flushFrame(16);
+    adapter.handlePointerMove(
+      makePointerEvent("pointermove", { target: endHandle, x: 320, y: 1290 }),
+    );
+    flushFrame(32);
+    flushFrame(48);
+
+    expect(mainGrid.scrollTop).toBe(20);
+
+    adapter.handlePointerUp(
+      makePointerEvent("pointerup", { target: endHandle, x: 320, y: 1290 }),
+    );
+
+    expect(onCommitTimedResize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          endDate: expect.stringContaining("12:15"),
+          startDate: expect.stringContaining("09:00"),
+        }),
+      }),
+    );
+  });
+
+  it("re-syncs the overlay position when the grid scrolls without further pointer movement", () => {
+    const { adapter, endHandle, flushFrame, mainGrid } = createHarness();
+
+    adapter.handlePointerDown(
+      makePointerEvent("pointerdown", { target: endHandle, x: 320, y: 1100 }),
+    );
+    adapter.handlePointerMove(
+      makePointerEvent("pointermove", { target: endHandle, x: 320, y: 1150 }),
+    );
+    flushFrame();
+
+    const overlay = document.body.querySelector(
+      "[data-calendar-interaction-overlay]",
+    ) as HTMLElement | null;
+
+    expect(overlay?.style.transform).toBe("translate3d(0px, 0px, 0)");
+    expect(overlay?.style.height).toBe("150px");
+
+    mainGrid.scrollTop = 100;
+    mainGrid.dispatchEvent(new Event("scroll"));
+    flushFrame();
+
+    expect(overlay?.style.transform).toBe("translate3d(0px, -100px, 0)");
+    expect(overlay?.style.height).toBe("250px");
+  });
+
+  it("uses the latest timed grid scroll position when it changes before timed resize commit", () => {
+    const { adapter, endHandle, flushFrame, mainGrid, onCommitTimedResize } =
+      createHarness();
+
+    adapter.handlePointerDown(
+      makePointerEvent("pointerdown", { target: endHandle, x: 320, y: 1100 }),
+    );
+    adapter.handlePointerMove(
+      makePointerEvent("pointermove", { target: endHandle, x: 320, y: 1200 }),
+    );
+
+    flushFrame();
+
+    mainGrid.scrollTop = 120;
+
+    adapter.handlePointerUp(
+      makePointerEvent("pointerup", { target: endHandle, x: 320, y: 1200 }),
+    );
+
+    expect(onCommitTimedResize).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          endDate: expect.stringContaining("12:15"),
+          startDate: expect.stringContaining("09:00"),
+        }),
       }),
     );
   });

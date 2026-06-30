@@ -90,6 +90,8 @@ export const createCalendarInteractionEngine = <TTarget, TVisual, TResult>(
   let preparedSource: PreparedSourceElement | null = null;
   let previousFrameTimestamp: number | null = null;
   let rafId: unknown = null;
+  let scrollSync: { element: EventTarget; handleScroll: () => void } | null =
+    null;
   let session: CalendarInteractionSession<TTarget, TVisual> = {
     phase: "idle",
   };
@@ -190,9 +192,16 @@ export const createCalendarInteractionEngine = <TTarget, TVisual, TResult>(
     }
 
     const motionSession = session;
+    const finalUpdate = resolvedOptions.adapter.updateVisual({
+      pointer: getPointerPoint(event),
+      target: motionSession.target,
+      timestamp: resolvedOptions.now(),
+      visual: motionSession.visual,
+    });
+
     const result = resolvedOptions.adapter.commit({
       target: motionSession.target,
-      visual: motionSession.visual,
+      visual: finalUpdate.visual,
     });
     teardownActiveSession("commit");
     session = { phase: "idle" };
@@ -303,6 +312,7 @@ export const createCalendarInteractionEngine = <TTarget, TVisual, TResult>(
         pendingSession.target,
       ),
     );
+    attachScrollSync(getNearestScrollableAncestor(pendingSession.sourceElement));
     activatedAt = resolvedOptions.now();
     latestPointer = pendingSession.startPoint;
     metrics.active = true;
@@ -317,6 +327,30 @@ export const createCalendarInteractionEngine = <TTarget, TVisual, TResult>(
       visual,
     };
     scheduleFrame();
+  }
+
+  function attachScrollSync(element: EventTarget | null) {
+    if (!element) {
+      return;
+    }
+
+    const handleScroll = () => {
+      if (session.phase === "motion") {
+        scheduleFrame();
+      }
+    };
+
+    element.addEventListener("scroll", handleScroll, { passive: true });
+    scrollSync = { element, handleScroll };
+  }
+
+  function detachScrollSync() {
+    if (!scrollSync) {
+      return;
+    }
+
+    scrollSync.element.removeEventListener("scroll", scrollSync.handleScroll);
+    scrollSync = null;
   }
 
   function mountOverlay(mount: FloatingInteractionOverlayMount) {
@@ -397,6 +431,7 @@ export const createCalendarInteractionEngine = <TTarget, TVisual, TResult>(
 
     overlay?.unmount();
     overlay = null;
+    detachScrollSync();
 
     if (preparedSource) {
       restoreSourceElement(preparedSource);
@@ -436,3 +471,22 @@ const getPointerPoint = (event: PointerEvent): CalendarInteractionPoint => ({
   x: event.clientX,
   y: event.clientY,
 });
+
+// The overlay tracks the dragged element visually, so it needs to re-sync
+// whenever its nearest scrollable ancestor scrolls — regardless of what kind
+// of element is being dragged.
+const getNearestScrollableAncestor = (
+  element: HTMLElement,
+): HTMLElement | null => {
+  let node = element.parentElement;
+
+  while (node) {
+    if (node.scrollHeight > node.clientHeight) {
+      return node;
+    }
+
+    node = node.parentElement;
+  }
+
+  return null;
+};
