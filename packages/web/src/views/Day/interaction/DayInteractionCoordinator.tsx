@@ -2,12 +2,6 @@ import { type FC, type PropsWithChildren, useMemo, useRef } from "react";
 import { type Dayjs } from "@core/util/date/dayjs";
 import { type CalendarLayoutCacheSources } from "@web/common/calendar-grid/interaction/calendarLayoutCache";
 import { CalendarInteractionPointerCaptureBoundary } from "@web/common/calendar-interaction/react/CalendarInteractionPointerCaptureBoundary";
-import {
-  CursorItem,
-  closeFloatingAtCursor,
-  isOpenAtCursor,
-  openFloatingAtCursor,
-} from "@web/common/hooks/useOpenAtCursor";
 import { useUpdateEvent } from "@web/common/hooks/useUpdateEvent";
 import { type Schema_GridEvent } from "@web/common/types/web.event.types";
 import {
@@ -15,6 +9,7 @@ import {
   type EventWithDates,
   hasEventDates,
 } from "@web/common/utils/event/event.util";
+import { selectIsEventFormOpen } from "@web/ducks/events/selectors/draft.selectors";
 import {
   selectDayEvents,
   selectTimedDayEvents,
@@ -30,20 +25,18 @@ import {
   type DayTimedDragCommitResult,
   type DayTimedResizeCommitResult,
 } from "./adapter/DayInteractionAdapter";
-import {
-  type DayInteractionEventType,
-  dayCalendarEventRegistry,
-} from "./registry/dayCalendarEventRegistry";
 
 interface Props extends PropsWithChildren {
   dateInView: Dayjs;
   getLayoutSources: () => CalendarLayoutCacheSources;
+  onOpenEvent: (event: Schema_GridEvent) => void;
 }
 
 export const DayInteractionCoordinator: FC<Props> = ({
   children,
   dateInView,
   getLayoutSources,
+  onOpenEvent,
 }) => {
   const dispatch = useAppDispatch();
   const dayEvents = useAppSelector(selectDayEvents);
@@ -54,6 +47,9 @@ export const DayInteractionCoordinator: FC<Props> = ({
   const timedEvents = useAppSelector(selectTimedDayEvents);
   const pendingEventIds = useAppSelector(selectPendingEventIds);
   const updateEvent = useUpdateEvent();
+  const isFormOpen = useAppSelector(selectIsEventFormOpen);
+  const isFormOpenRef = useRef(isFormOpen);
+  isFormOpenRef.current = isFormOpen;
   const layoutSourcesRef = useRef(getLayoutSources);
   const timedEventsById = useMemo(() => {
     return mapEventsById(timedEvents);
@@ -88,19 +84,7 @@ export const DayInteractionCoordinator: FC<Props> = ({
       return;
     }
 
-    dispatch(draftSlice.actions.startGridClick({ ...event, _id: event._id }));
-
-    const eventType: DayInteractionEventType = event.isAllDay
-      ? "all-day"
-      : "timed";
-    const reference = dayCalendarEventRegistry.resolve(event._id, eventType);
-
-    if (reference) {
-      openFloatingAtCursor({
-        nodeId: CursorItem.EventForm,
-        reference,
-      });
-    }
+    onOpenEvent(event);
   };
 
   const commitSavedMutation = (
@@ -115,7 +99,6 @@ export const DayInteractionCoordinator: FC<Props> = ({
       return;
     }
 
-    closeFloatingAtCursor();
     updateEvent({ event: result.event }, true);
     dispatch(draftSlice.actions.discard(undefined));
   };
@@ -124,7 +107,7 @@ export const DayInteractionCoordinator: FC<Props> = ({
     getAllDayEventById: (eventId) => allDayEventsById.get(eventId) ?? null,
     getTimedEventById: (eventId) => timedEventsById.get(eventId) ?? null,
     isEventPending: (eventId) => pendingEventIdSet.has(eventId),
-    isFormOpen: () => isOpenAtCursor(CursorItem.EventForm),
+    isFormOpen: () => isFormOpenRef.current,
     onClickAllDayEvent: openDayCalendarEvent,
     onClickTimedEvent: openDayCalendarEvent,
     onCommitAllDayDrag: commitSavedMutation,
@@ -133,7 +116,7 @@ export const DayInteractionCoordinator: FC<Props> = ({
     onCommitTimedResize: commitSavedMutation,
     onMotionActivation: (target) => {
       if (target.hadFormOpenBeforeInteraction) {
-        closeFloatingAtCursor();
+        dispatch(draftSlice.actions.setFormOpen(false));
       }
     },
   };

@@ -1,4 +1,4 @@
-import { useDismiss, useInteractions } from "@floating-ui/react";
+import { type OpenChangeReason, type VirtualElement } from "@floating-ui/react";
 import {
   type MouseEvent as ReactMouseEvent,
   useCallback,
@@ -13,13 +13,6 @@ import { CALENDAR_TIMED_VISIBLE_HOURS } from "@web/common/calendar-grid/calendar
 import { CalendarGrid } from "@web/common/calendar-grid/components/CalendarGrid";
 import { useCalendarDateCalcs } from "@web/common/calendar-grid/hooks/useCalendarDateCalcs";
 import { useCalendarGridLayout } from "@web/common/calendar-grid/hooks/useCalendarGridLayout";
-import { useFloatingAtCursor } from "@web/common/hooks/useFloatingAtCursor";
-import {
-  CursorItem,
-  closeFloatingAtCursor,
-  nodeIdStore,
-  openFloatingAtCursor,
-} from "@web/common/hooks/useOpenAtCursor";
 import { type Schema_GridEvent } from "@web/common/types/web.event.types";
 import {
   CompassDOMEvents,
@@ -36,7 +29,10 @@ import {
 import { getCurrentMinute } from "@web/common/utils/grid/grid.util";
 import { isRightClick } from "@web/common/utils/mouse/mouse.util";
 import { FloatingEventForm } from "@web/components/FloatingEventForm/FloatingEventForm";
-import { selectDraft } from "@web/ducks/events/selectors/draft.selectors";
+import {
+  selectDraft,
+  selectIsEventFormOpen,
+} from "@web/ducks/events/selectors/draft.selectors";
 import {
   selectDayEvents,
   selectDayRowCount,
@@ -46,9 +42,9 @@ import { useAppDispatch, useAppSelector } from "@web/store/store.hooks";
 import { useDateInView } from "@web/views/Day/hooks/navigation/useDateInView";
 import { DayInteractionCoordinator } from "@web/views/Day/interaction/DayInteractionCoordinator";
 import {
-  type DayInteractionEventType,
-  dayCalendarEventRegistry,
-} from "@web/views/Day/interaction/registry/dayCalendarEventRegistry";
+  type EventFormProps,
+  useEventForm,
+} from "@web/views/Forms/hooks/useEventForm";
 import { useDayCalendarContextMenu } from "./DayCalendarContextMenu";
 import {
   DayCalendarAllDayEventsLayer,
@@ -57,6 +53,31 @@ import {
 import { useDayTimedDraftCreation } from "./useDayTimedDraftCreation";
 
 const isDayInteractionMotionActive = () => false;
+
+const createEventFormAnchor = (eventId: string): VirtualElement => {
+  const getEventElement = () => getCalendarEventElementFromGrid(eventId);
+
+  return {
+    getBoundingClientRect: () =>
+      getEventElement()?.getBoundingClientRect() ?? new DOMRect(),
+    get contextElement() {
+      return getEventElement() ?? undefined;
+    },
+  };
+};
+
+const isPointInsideElement = (event: MouseEvent, element: Element) => {
+  const rect = element.getBoundingClientRect();
+
+  return (
+    rect.width > 0 &&
+    rect.height > 0 &&
+    event.clientX >= rect.left &&
+    event.clientX <= rect.right &&
+    event.clientY >= rect.top &&
+    event.clientY <= rect.bottom
+  );
+};
 
 export function DayCalendarGrid() {
   const dispatch = useAppDispatch();
@@ -83,35 +104,61 @@ export function DayCalendarGrid() {
   const dayEvents = useAppSelector(selectDayEvents);
   const allDayRowsCount = useAppSelector(selectDayRowCount);
   const draft = useAppSelector(selectDraft);
+  const isFormOpen = useAppSelector(selectIsEventFormOpen);
+  const draftCategory = draft?.isAllDay
+    ? Categories_Event.ALLDAY
+    : Categories_Event.TIMED;
   const allDayCreationPressTargetRef = useRef<HTMLElement | null>(null);
-  const floating = useFloatingAtCursor((open, _event, reason) => {
-    const dismissed = reason === "escape-key" || reason === "outside-press";
+  const shouldDismissEventForm = useCallback(
+    (event: MouseEvent) => {
+      const eventElement = draft?._id
+        ? getCalendarEventElementFromGrid(draft._id)
+        : null;
 
-    if (!open && dismissed && nodeIdStore.get() === CursorItem.EventForm) {
-      dispatch(draftSlice.actions.discard(undefined));
-    }
-  });
-  const shouldDismissEventForm = useCallback((event: MouseEvent) => {
-    const allDayCreationPressTarget = allDayCreationPressTargetRef.current;
+      if (eventElement && isPointInsideElement(event, eventElement)) {
+        return false;
+      }
 
-    if (!allDayCreationPressTarget) {
-      return true;
-    }
+      const allDayCreationPressTarget = allDayCreationPressTargetRef.current;
 
-    allDayCreationPressTargetRef.current = null;
+      if (!allDayCreationPressTarget) {
+        return true;
+      }
 
-    const target = event.target;
+      allDayCreationPressTargetRef.current = null;
 
-    return !(
-      target instanceof Node && allDayCreationPressTarget.contains(target)
-    );
-  }, []);
-  const dismiss = useDismiss(floating.context, {
-    enabled: true,
-    outsidePress: shouldDismissEventForm,
-    outsidePressEvent: "click",
-  });
-  const interactions = useInteractions([dismiss]);
+      const target = event.target;
+
+      return !(
+        target instanceof Node && allDayCreationPressTarget.contains(target)
+      );
+    },
+    [draft?._id],
+  );
+  const handleFormOpenChange = useCallback(
+    (open: boolean, _event: Event, reason?: OpenChangeReason) => {
+      const dismissed = reason === "escape-key" || reason === "outside-press";
+
+      if (!open && dismissed) {
+        dispatch(draftSlice.actions.discard(undefined));
+      }
+    },
+    [dispatch],
+  );
+  const form: EventFormProps = useEventForm(
+    draftCategory,
+    isFormOpen,
+    handleFormOpenChange,
+    {
+      dismiss: {
+        enabled: true,
+        outsidePress: shouldDismissEventForm,
+        outsidePressEvent: "click",
+      },
+    },
+  );
+  const setFormPositionReference = form.refs.setPositionReference;
+  const setFormReference = form.refs.setReference;
 
   const getDayInteractionLayoutSources = useCallback(
     () => ({
@@ -176,23 +223,13 @@ export function DayCalendarGrid() {
         return;
       }
 
+      const eventElement = getCalendarEventElementFromGrid(event._id);
+      setFormReference(eventElement);
+      setFormPositionReference(createEventFormAnchor(event._id));
       dispatch(draftSlice.actions.startGridClick({ ...event, _id: event._id }));
-
-      queueMicrotask(() => {
-        const eventType = getDayInteractionEventType(event);
-        const reference =
-          dayCalendarEventRegistry.resolve(event._id!, eventType) ??
-          getCalendarEventElementFromGrid(event._id!);
-
-        if (reference) {
-          openFloatingAtCursor({
-            nodeId: CursorItem.EventForm,
-            reference,
-          });
-        }
-      });
+      dispatch(draftSlice.actions.setFormOpen(true));
     },
-    [dispatch],
+    [dispatch, setFormPositionReference, setFormReference],
   );
 
   const getDayEventById = useCallback(
@@ -208,12 +245,10 @@ export function DayCalendarGrid() {
     [dayEvents],
   );
 
-  const { anchorElement, contextMenu, handleContextMenu } =
-    useDayCalendarContextMenu({
-      floating,
-      getDayEventById,
-      onOpenEvent: openEventFormForEvent,
-    });
+  const { contextMenu, handleContextMenu } = useDayCalendarContextMenu({
+    getDayEventById,
+    onOpenEvent: openEventFormForEvent,
+  });
 
   const onAllDayMouseDown = useCallback(
     async (event: ReactMouseEvent<HTMLElement>) => {
@@ -226,7 +261,6 @@ export function DayCalendarGrid() {
       if (draft) {
         allDayCreationPressTargetRef.current = null;
         dispatch(draftSlice.actions.discard(undefined));
-        closeFloatingAtCursor();
         return;
       }
 
@@ -290,10 +324,10 @@ export function DayCalendarGrid() {
       className="flex h-full min-w-xs flex-1 flex-col bg-bg-primary px-0.5 pb-0.5"
       onContextMenu={handleContextMenu}
     >
-      {anchorElement}
       <DayInteractionCoordinator
         dateInView={dateInView}
         getLayoutSources={getDayInteractionLayoutSources}
+        onOpenEvent={openEventFormForEvent}
       >
         <CalendarGrid
           allDayEventsLayer={allDayEventsLayer}
@@ -307,11 +341,7 @@ export function DayCalendarGrid() {
         />
       </DayInteractionCoordinator>
       {contextMenu}
-      <FloatingEventForm floating={floating} interactions={interactions} />
+      <FloatingEventForm form={form} />
     </section>
   );
 }
-
-const getDayInteractionEventType = (
-  event: Schema_GridEvent,
-): DayInteractionEventType => (event.isAllDay ? "all-day" : "timed");
