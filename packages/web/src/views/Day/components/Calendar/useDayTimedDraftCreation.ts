@@ -174,7 +174,6 @@ export const useDayTimedDraftCreation = ({
         }
 
         if (mouseEvent.buttons !== 1) {
-          finish(mouseEvent);
           return;
         }
 

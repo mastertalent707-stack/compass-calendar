@@ -66,19 +66,6 @@ const createEventFormAnchor = (eventId: string): VirtualElement => {
   };
 };
 
-const isPointInsideElement = (event: MouseEvent, element: Element) => {
-  const rect = element.getBoundingClientRect();
-
-  return (
-    rect.width > 0 &&
-    rect.height > 0 &&
-    event.clientX >= rect.left &&
-    event.clientX <= rect.right &&
-    event.clientY >= rect.top &&
-    event.clientY <= rect.bottom
-  );
-};
-
 export function DayCalendarGrid() {
   const dispatch = useAppDispatch();
   const dateInView = useDateInView();
@@ -108,33 +95,6 @@ export function DayCalendarGrid() {
   const draftCategory = draft?.isAllDay
     ? Categories_Event.ALLDAY
     : Categories_Event.TIMED;
-  const allDayCreationPressTargetRef = useRef<HTMLElement | null>(null);
-  const shouldDismissEventForm = useCallback(
-    (event: MouseEvent) => {
-      const eventElement = draft?._id
-        ? getCalendarEventElementFromGrid(draft._id)
-        : null;
-
-      if (eventElement && isPointInsideElement(event, eventElement)) {
-        return false;
-      }
-
-      const allDayCreationPressTarget = allDayCreationPressTargetRef.current;
-
-      if (!allDayCreationPressTarget) {
-        return true;
-      }
-
-      allDayCreationPressTargetRef.current = null;
-
-      const target = event.target;
-
-      return !(
-        target instanceof Node && allDayCreationPressTarget.contains(target)
-      );
-    },
-    [draft?._id],
-  );
   const handleFormOpenChange = useCallback(
     (open: boolean, _event: Event, reason?: OpenChangeReason) => {
       const dismissed = reason === "escape-key" || reason === "outside-press";
@@ -149,13 +109,6 @@ export function DayCalendarGrid() {
     draftCategory,
     isFormOpen,
     handleFormOpenChange,
-    {
-      dismiss: {
-        enabled: true,
-        outsidePress: shouldDismissEventForm,
-        outsidePressEvent: "click",
-      },
-    },
   );
   const setFormPositionReference = form.refs.setPositionReference;
   const setFormReference = form.refs.setReference;
@@ -256,10 +209,7 @@ export function DayCalendarGrid() {
         return;
       }
 
-      const allDayCreationPressTarget = event.currentTarget;
-
       if (draft) {
-        allDayCreationPressTargetRef.current = null;
         dispatch(draftSlice.actions.discard(undefined));
         return;
       }
@@ -275,7 +225,6 @@ export function DayCalendarGrid() {
         endDate,
       );
 
-      allDayCreationPressTargetRef.current = allDayCreationPressTarget;
       openEventFormForEvent(
         addId(assembleGridEvent(draftEvent as EventWithDates)),
       );
