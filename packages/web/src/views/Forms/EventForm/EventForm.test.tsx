@@ -83,6 +83,17 @@ function dispatchArrowDown(target: HTMLElement) {
   return event;
 }
 
+function dispatchDelete(target: HTMLElement) {
+  const event = new KeyboardEvent("keydown", {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    key: "Delete",
+  });
+  target.dispatchEvent(event);
+  return event;
+}
+
 const createEvent = (overrides: Partial<Schema_Event> = {}): Schema_Event => ({
   _id: "event-1",
   description: "",
@@ -164,40 +175,6 @@ describe("EventForm", () => {
     expect(onDuplicate).toHaveBeenCalledWith(event);
   });
 
-  it("marks the title field as text editing after the user changes it", async () => {
-    const user = userEvent.setup();
-    const event = { ...createEvent(), title: "" };
-    const onDraftTitleArrowKey = mock(() => true);
-
-    render(
-      <EventForm
-        event={event}
-        isDraft={true}
-        isExistingEvent={false}
-        onClose={mock()}
-        onDelete={mock()}
-        onDuplicate={mock()}
-        onDraftTitleArrowKey={onDraftTitleArrowKey}
-        onSubmit={mock()}
-        setEvent={mock()}
-      />,
-    );
-
-    const titleField = screen.getByPlaceholderText("Title");
-
-    const beforeTyping = dispatchArrowDown(titleField);
-
-    expect(onDraftTitleArrowKey).toHaveBeenCalledTimes(1);
-    expect(beforeTyping.defaultPrevented).toBe(true);
-
-    await user.type(titleField, "Plan");
-    onDraftTitleArrowKey.mockClear();
-    const afterTyping = dispatchArrowDown(titleField);
-
-    expect(onDraftTitleArrowKey).not.toHaveBeenCalled();
-    expect(afterTyping.defaultPrevented).toBe(false);
-  });
-
   it("closes a draft event immediately when deleting from the menu", async () => {
     const user = userEvent.setup();
     const onClose = mock();
@@ -225,50 +202,88 @@ describe("EventForm", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("resets title editing state when an unsaved draft session changes", async () => {
-    const user = userEvent.setup();
-    const event = { ...createEvent(), _id: undefined, title: "" };
-    const onDraftTitleArrowKey = mock(() => true);
+  it("does not delete an existing event when Delete is pressed in the title field", async () => {
+    const onClose = mock();
+    const onDelete = mock();
 
-    const { rerender } = render(
+    render(
       <EventForm
-        event={event}
-        isDraft={true}
-        isExistingEvent={false}
-        onClose={mock()}
-        onDelete={mock()}
+        event={createEvent()}
+        isDraft={false}
+        isExistingEvent={true}
+        onClose={onClose}
+        onDelete={onDelete}
         onDuplicate={mock()}
-        onDraftTitleArrowKey={onDraftTitleArrowKey}
         onSubmit={mock()}
         setEvent={mock()}
-        titleEditingResetKey={1}
       />,
     );
 
     const titleField = screen.getByPlaceholderText("Title");
-    await user.type(titleField, "Plan");
-    onDraftTitleArrowKey.mockClear();
-    dispatchArrowDown(titleField);
-    expect(onDraftTitleArrowKey).not.toHaveBeenCalled();
+    titleField.focus();
 
-    rerender(
+    const event = dispatchDelete(titleField);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("does not delete an existing event when Delete is pressed in the description field", async () => {
+    const onClose = mock();
+    const onDelete = mock();
+
+    render(
       <EventForm
-        event={event}
-        isDraft={true}
-        isExistingEvent={false}
-        onClose={mock()}
-        onDelete={mock()}
+        event={createEvent({ description: "Plan the launch" })}
+        isDraft={false}
+        isExistingEvent={true}
+        onClose={onClose}
+        onDelete={onDelete}
         onDuplicate={mock()}
-        onDraftTitleArrowKey={onDraftTitleArrowKey}
         onSubmit={mock()}
         setEvent={mock()}
-        titleEditingResetKey={2}
       />,
     );
 
+    const descriptionField = screen.getByPlaceholderText("Description");
+    descriptionField.focus();
+
+    const event = dispatchDelete(descriptionField);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("still deletes an existing event when Delete is pressed on a non-text form target", async () => {
+    const onClose = mock();
+    const onDelete = mock();
+    const confirm = mock(() => true);
+    window.confirm = confirm;
+
+    render(
+      <EventForm
+        event={createEvent()}
+        isDraft={false}
+        isExistingEvent={true}
+        onClose={onClose}
+        onDelete={onDelete}
+        onDuplicate={mock()}
+        onSubmit={mock()}
+        setEvent={mock()}
+      />,
+    );
+
+    const form = screen.getByRole("form");
+    form.focus();
+
+    const event = dispatchDelete(form);
+
+    expect(event.defaultPrevented).toBe(true);
+
     await waitFor(() => {
-      dispatchArrowDown(titleField);
-      expect(onDraftTitleArrowKey).toHaveBeenCalledTimes(1);
+      expect(onDelete).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -318,9 +333,8 @@ describe("EventForm", () => {
     );
   });
 
-  it("moves an untouched empty draft title with arrow keys", () => {
+  it("lets an untouched empty draft title keep normal arrow-key behavior", () => {
     const event = { ...createEvent(), title: "" };
-    const onDraftTitleArrowKey = mock(() => true);
 
     render(
       <EventForm
@@ -329,7 +343,6 @@ describe("EventForm", () => {
         isExistingEvent={false}
         onClose={mock()}
         onDelete={mock()}
-        onDraftTitleArrowKey={onDraftTitleArrowKey}
         onDuplicate={mock()}
         onSubmit={mock()}
         setEvent={mock()}
@@ -339,13 +352,11 @@ describe("EventForm", () => {
     const titleField = screen.getByPlaceholderText("Title");
     const eventResult = dispatchArrowDown(titleField);
 
-    expect(onDraftTitleArrowKey).toHaveBeenCalledWith("ArrowDown");
-    expect(eventResult.defaultPrevented).toBe(true);
+    expect(eventResult.defaultPrevented).toBe(false);
   });
 
-  it("moves an untouched existing event draft title with arrow keys", () => {
+  it("lets an untouched existing event title keep normal arrow-key behavior", () => {
     const event = { ...createEvent(), title: "Planning" };
-    const onDraftTitleArrowKey = mock(() => true);
 
     render(
       <EventForm
@@ -354,7 +365,6 @@ describe("EventForm", () => {
         isExistingEvent={true}
         onClose={mock()}
         onDelete={mock()}
-        onDraftTitleArrowKey={onDraftTitleArrowKey}
         onDuplicate={mock()}
         onSubmit={mock()}
         setEvent={mock()}
@@ -364,13 +374,31 @@ describe("EventForm", () => {
     const titleField = screen.getByPlaceholderText("Title");
     const eventResult = dispatchArrowDown(titleField);
 
-    expect(onDraftTitleArrowKey).toHaveBeenCalledWith("ArrowDown");
-    expect(eventResult.defaultPrevented).toBe(true);
+    expect(eventResult.defaultPrevented).toBe(false);
+  });
+
+  it("lets the description field keep normal arrow-key behavior", () => {
+    render(
+      <EventForm
+        event={createEvent({ description: "Plan the launch" })}
+        isDraft={false}
+        isExistingEvent={true}
+        onClose={mock()}
+        onDelete={mock()}
+        onDuplicate={mock()}
+        onSubmit={mock()}
+        setEvent={mock()}
+      />,
+    );
+
+    const descriptionField = screen.getByPlaceholderText("Description");
+    const eventResult = dispatchArrowDown(descriptionField);
+
+    expect(eventResult.defaultPrevented).toBe(false);
   });
 
   it("lets directly edited existing event titles keep normal arrow-key behavior", () => {
     const event = { ...createEvent(), title: "Planning" };
-    const onDraftTitleArrowKey = mock(() => true);
 
     render(
       <EventForm
@@ -379,7 +407,6 @@ describe("EventForm", () => {
         isExistingEvent={true}
         onClose={mock()}
         onDelete={mock()}
-        onDraftTitleArrowKey={onDraftTitleArrowKey}
         onDuplicate={mock()}
         onSubmit={mock()}
         setEvent={mock()}
@@ -390,7 +417,6 @@ describe("EventForm", () => {
     fireEvent.pointerDown(titleField);
     const eventResult = dispatchArrowDown(titleField);
 
-    expect(onDraftTitleArrowKey).not.toHaveBeenCalled();
     expect(eventResult.defaultPrevented).toBe(false);
   });
 
