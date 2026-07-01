@@ -1,38 +1,28 @@
 import { type FC } from "react";
-import { theme } from "@web/common/styles/theme";
-import { HeaderInfoIcon } from "@web/components/HeaderInfoIcon/HeaderInfoIcon";
-import { SidebarIcon } from "@web/components/Icons/Sidebar";
-import { SelectView } from "@web/components/SelectView/SelectView";
-import { TooltipWrapper } from "@web/components/Tooltip/TooltipWrapper";
+import dayjs from "@core/util/date/dayjs";
+import { CalendarHeader } from "@web/components/CalendarHeader/CalendarHeader";
+import { useDateInView } from "@web/views/Day/hooks/navigation/useDateInView";
+import { useDateNavigation } from "@web/views/Day/hooks/navigation/useDateNavigation";
 
-interface Props {
-  isSidebarOpen?: boolean;
-  onToggleSidebar?: () => void;
-}
+const DAY_LABEL_FORMAT = "dddd, MMMM D";
 
-export const Header: FC<Props> = ({
-  isSidebarOpen = true,
-  onToggleSidebar,
-}) => {
+export const Header: FC = () => {
+  const dateInView = useDateInView();
+  const { navigateToPreviousDay, navigateToNextDay, navigateToToday } =
+    useDateNavigation();
+
+  const label = dateInView.locale("en").format(DAY_LABEL_FORMAT);
+  const isToday = dateInView.isSame(dayjs(), "day");
+
   return (
-    <div className="relative flex h-20 w-full items-baseline justify-between text-text-light">
-      {!isSidebarOpen ? (
-        <TooltipWrapper
-          description="Open sidebar"
-          onClick={onToggleSidebar}
-          shortcut="["
-        >
-          <span className="flex h-6 w-6 items-center justify-center">
-            <SidebarIcon color={theme.color.text.lightInactive} size={21} />
-          </span>
-        </TooltipWrapper>
-      ) : null}
-      <div className="z-2 flex items-center justify-between" />
-
-      <div className="z-2 flex h-full items-center justify-between pr-5">
-        <HeaderInfoIcon />
-        <SelectView />
-      </div>
-    </div>
+    <CalendarHeader
+      label={label}
+      onPrev={navigateToPreviousDay}
+      onNext={navigateToNextDay}
+      onToday={navigateToToday}
+      isToday={isToday}
+      prevLabel="Previous day"
+      nextLabel="Next day"
+    />
   );
 };
