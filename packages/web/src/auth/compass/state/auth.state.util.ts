@@ -4,6 +4,7 @@ import {
   DEFAULT_AUTH_STATE,
 } from "@web/common/constants/auth.constants";
 import { STORAGE_KEYS } from "@web/common/constants/storage.constants";
+import { persistentBrowserStore } from "@web/common/storage/browser-key-value.store";
 import { clearGoogleRevokedState } from "../../google/state/google.auth.state";
 
 const authStateListeners = new Set<() => void>();
@@ -44,47 +45,38 @@ function normalizeStoredAuthState(parsed: unknown): AuthState {
 }
 
 /**
- * Get the current authentication state from localStorage.
+ * Get the current authentication state from persistent browser storage.
  * Returns default state if not found or invalid.
  */
 export function getAuthState(): AuthState {
   if (typeof window === "undefined") return DEFAULT_AUTH_STATE;
 
-  try {
-    const stored = localStorage.getItem(STORAGE_KEYS.AUTH);
-    if (stored) {
-      const parsed: unknown = JSON.parse(stored);
-      return normalizeStoredAuthState(parsed);
-    }
+  const stored = persistentBrowserStore.get(STORAGE_KEYS.AUTH);
+  if (!stored) return DEFAULT_AUTH_STATE;
 
-    return DEFAULT_AUTH_STATE;
+  try {
+    return normalizeStoredAuthState(JSON.parse(stored));
   } catch {
     return DEFAULT_AUTH_STATE;
   }
 }
 
 /**
- * Update authentication state in localStorage.
+ * Update authentication state in persistent browser storage.
  * Merges partial updates into existing state.
  */
 export function updateAuthState(updates: Partial<AuthState>): void {
   if (typeof window === "undefined") return;
 
-  try {
-    const current = getAuthState();
-    const updated: AuthState = {
-      ...current,
-      ...updates,
-    };
+  const result = AuthStateSchema.safeParse({ ...getAuthState(), ...updates });
+  if (!result.success) return;
 
-    // Validate with zod schema
-    const result = AuthStateSchema.safeParse(updated);
-    if (result.success) {
-      localStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(result.data));
-      emitAuthStateChange();
-    }
-  } catch {
-    // Silently fail if localStorage is unavailable
+  const wasStored = persistentBrowserStore.set(
+    STORAGE_KEYS.AUTH,
+    JSON.stringify(result.data),
+  );
+  if (wasStored) {
+    emitAuthStateChange();
   }
 }
 
@@ -97,15 +89,11 @@ export function updateAuthState(updates: Partial<AuthState>): void {
 export function markUserAsAuthenticated(lastKnownEmail?: string): void {
   if (typeof window === "undefined") return;
 
-  try {
-    updateAuthState({
-      hasAuthenticated: true,
-      ...(lastKnownEmail ? { lastKnownEmail } : {}),
-    });
-    clearGoogleRevokedState();
-  } catch {
-    // Silently fail if localStorage is unavailable
-  }
+  updateAuthState({
+    hasAuthenticated: true,
+    ...(lastKnownEmail ? { lastKnownEmail } : {}),
+  });
+  clearGoogleRevokedState();
 }
 
 /**
@@ -115,19 +103,11 @@ export function markUserAsAuthenticated(lastKnownEmail?: string): void {
  * @returns true if user has previously authenticated
  */
 export function hasUserEverAuthenticated(): boolean {
-  try {
-    return getAuthState().hasAuthenticated;
-  } catch {
-    return false;
-  }
+  return getAuthState().hasAuthenticated;
 }
 
 export function getLastKnownEmail(): string | undefined {
-  try {
-    return getAuthState().lastKnownEmail;
-  } catch {
-    return undefined;
-  }
+  return getAuthState().lastKnownEmail;
 }
 
 /**
@@ -137,11 +117,8 @@ export function getLastKnownEmail(): string | undefined {
 export function clearAuthenticationState(): void {
   if (typeof window === "undefined") return;
 
-  try {
-    localStorage.removeItem(STORAGE_KEYS.AUTH);
+  if (persistentBrowserStore.remove(STORAGE_KEYS.AUTH)) {
     emitAuthStateChange();
-  } catch {
-    // Silently fail if localStorage is unavailable
   }
 }
 
@@ -154,13 +131,7 @@ export function markAnonymousCalendarChangeForSignUpPrompt(): void {
 }
 
 export function shouldShowAnonymousCalendarChangeSignUpPrompt(): boolean {
-  try {
-    return (
-      getAuthState().shouldPromptSignUpAfterAnonymousCalendarChange === true
-    );
-  } catch {
-    return false;
-  }
+  return getAuthState().shouldPromptSignUpAfterAnonymousCalendarChange === true;
 }
 
 export function subscribeToAuthState(listener: () => void): () => void {
