@@ -1,5 +1,4 @@
 import {
-  act,
   cleanup,
   fireEvent,
   render,
@@ -8,6 +7,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { act } from "react";
 import { Provider } from "react-redux";
 import { type Schema_Event } from "@core/types/event.types";
 import dayjs from "@core/util/date/dayjs";
@@ -93,7 +93,11 @@ mock.module("@web/components/FloatingEventForm/FloatingEventForm", () => ({
   FloatingEventForm: ({ form }: { form: EventFormProps }) => {
     latestEventForm = form;
 
-    return getIsFormOpen() ? <dialog aria-label="Event form" open /> : null;
+    return getIsFormOpen() ? (
+      <dialog aria-label="Event form" open>
+        <input aria-label="Event Title" autoFocus />
+      </dialog>
+    ) : null;
   },
 }));
 
@@ -508,6 +512,18 @@ describe("DayCalendarGrid", () => {
       ).toBeVisible();
       expect(screen.getByRole("dialog", { name: "Event form" })).toBeVisible();
     });
+
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: /all-day event: untitled event/i,
+      }),
+    ).toBeVisible();
+    expect(screen.getByRole("dialog", { name: "Event form" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Event Title" })).toHaveFocus();
 
     await user.pointer({ keys: "[/MouseLeft]" });
   });

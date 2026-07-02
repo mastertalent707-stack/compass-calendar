@@ -1,16 +1,11 @@
 import { type OpenChangeReason, type VirtualElement } from "@floating-ui/react";
-import {
-  type MouseEvent as ReactMouseEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { YEAR_MONTH_DAY_FORMAT } from "@core/constants/date.constants";
-import { Categories_Event } from "@core/types/event.types";
+import { Categories_Event, type Schema_Event } from "@core/types/event.types";
 import dayjs from "@core/util/date/dayjs";
 import { CALENDAR_TIMED_VISIBLE_HOURS } from "@web/common/calendar-grid/calendarGrid.constants";
 import { CalendarGrid } from "@web/common/calendar-grid/components/CalendarGrid";
+import { useAllDayDraftCreation } from "@web/common/calendar-grid/hooks/useAllDayDraftCreation";
 import { useCalendarDateCalcs } from "@web/common/calendar-grid/hooks/useCalendarDateCalcs";
 import { useCalendarGridLayout } from "@web/common/calendar-grid/hooks/useCalendarGridLayout";
 import { type Schema_GridEvent } from "@web/common/types/web.event.types";
@@ -20,14 +15,11 @@ import {
 } from "@web/common/utils/dom/event-emitter.util";
 import {
   addId,
-  assembleDefaultEvent,
   assembleGridEvent,
-  type EventWithDates,
   getCalendarEventElementFromGrid,
   hasEventDates,
 } from "@web/common/utils/event/event.util";
 import { getCurrentMinute } from "@web/common/utils/grid/grid.util";
-import { isRightClick } from "@web/common/utils/mouse/mouse.util";
 import { FloatingEventForm } from "@web/components/FloatingEventForm/FloatingEventForm";
 import {
   selectDraft,
@@ -203,41 +195,19 @@ export function DayCalendarGrid() {
     onOpenEvent: openEventFormForEvent,
   });
 
-  const onAllDayMouseDown = useCallback(
-    async (event: ReactMouseEvent<HTMLElement>) => {
-      if (isRightClick(event)) {
-        return;
-      }
+  const getAllDayDraftStartDate = (clientX: number) =>
+    dateCalcs.getDateStrByXY(clientX, 0, YEAR_MONTH_DAY_FORMAT);
+  const openAllDayDraft = (event: Schema_Event) => {
+    if (!hasEventDates(event)) {
+      return;
+    }
 
-      if (draft) {
-        dispatch(draftSlice.actions.discard(undefined));
-        return;
-      }
-
-      const selectedDate =
-        visibleDates[dateCalcs.getVisibleDateIndexByX(event.clientX)]?.date ??
-        dateInView;
-      const startDate = selectedDate.format(YEAR_MONTH_DAY_FORMAT);
-      const endDate = selectedDate.add(1, "day").format(YEAR_MONTH_DAY_FORMAT);
-      const draftEvent = await assembleDefaultEvent(
-        Categories_Event.ALLDAY,
-        startDate,
-        endDate,
-      );
-
-      openEventFormForEvent(
-        addId(assembleGridEvent(draftEvent as EventWithDates)),
-      );
-    },
-    [
-      dateCalcs,
-      dateInView,
-      dispatch,
-      draft,
-      openEventFormForEvent,
-      visibleDates,
-    ],
-  );
+    openEventFormForEvent(addId(assembleGridEvent(event)));
+  };
+  const onAllDayMouseDown = useAllDayDraftCreation({
+    getStartDate: getAllDayDraftStartDate,
+    onCreateDraft: openAllDayDraft,
+  });
 
   const { startTimedDraftCreation } = useDayTimedDraftCreation({
     dateCalcs,
